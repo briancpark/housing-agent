@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>South Bay Housing Finder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1e293b;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    header .stats {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 420px;
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #334155;
+      flex-shrink: 0;
+    }
+
+    .filters {
+      padding: 16px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .filter-row label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #94a3b8;
+      min-width: 70px;
+    }
+
+    .filter-row select,
+    .filter-row input {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .filter-row input:focus,
+    .filter-row select:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .mortgage-config {
+      padding: 12px 16px;
+      background: #162032;
+      border-bottom: 1px solid #334155;
+    }
+
+    .mortgage-config summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .mortgage-config .fields {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .listing-count {
+      padding: 10px 16px;
+      font-size: 12px;
+      color: #64748b;
+      border-bottom: 1px solid #334155;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .listings {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    .listing-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1e293b;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .listing-card:hover {
+      background: #253349;
+    }
+
+    .listing-card.active {
+      background: #1e3a5f;
+      border-left: 3px solid #3b82f6;
+    }
+
+    .listing-card .price {
+      font-size: 18px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    .listing-card .monthly {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-left: 8px;
+    }
+
+    .listing-card .address {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-top: 4px;
+    }
+
+    .listing-card .details {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .listing-card .details span {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .listing-card .tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .tag.type {
+      background: #1e3a5f;
+      color: #60a5fa;
+    }
+
+    .tag.dom {
+      background: #1c2e1c;
+      color: #4ade80;
+    }
+
+    .tag.dom.stale {
+      background: #3b1c1c;
+      color: #f87171;
+    }
+
+    /* ── Map ── */
+    #map {
+      flex: 1;
+    }
+
+    /* Leaflet popup */
+    .leaflet-popup-content-wrapper {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .leaflet-popup-tip {
+      background: #1e293b;
+    }
+
+    .leaflet-popup-content {
+      margin: 14px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .popup-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    .popup-monthly {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+
+    .popup-address {
+      margin-top: 4px;
+      color: #cbd5e1;
+    }
+
+    .popup-details {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 16px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .popup-details strong {
+      color: #e2e8f0;
+    }
+
+    .popup-link {
+      display: inline-block;
+      margin-top: 10px;
+      color: #60a5fa;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .popup-link:hover {
+      text-decoration: underline;
+    }
+
+    .popup-mortgage {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #334155;
+      font-size: 12px;
+    }
+
+    .popup-mortgage .breakdown {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      color: #94a3b8;
+    }
+
+    .popup-mortgage .breakdown .val {
+      text-align: right;
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
+    .popup-mortgage .total-row {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #334155;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Color-coded markers */
+    .marker-green { filter: hue-rotate(85deg) saturate(1.5); }
+    .marker-yellow { filter: hue-rotate(30deg) saturate(1.2); }
+    .marker-orange { filter: hue-rotate(0deg) saturate(1.5); }
+    .marker-red { filter: hue-rotate(-20deg) saturate(2); }
+
+    /* Sort buttons */
+    .sort-bar {
+      padding: 8px 16px;
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .sort-btn {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .sort-btn.active {
+      background: #1e3a5f;
+      border-color: #3b82f6;
+      color: #60a5fa;
+    }
+
+    /* Scrollbar */
+    .listings::-webkit-scrollbar { width: 6px; }
+    .listings::-webkit-scrollbar-track { background: #0f172a; }
+    .listings::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>South Bay Housing Finder</h1>
+    <div class="stats" id="headerStats">Loading...</div>
+  </header>
+
+  <div class="container">
+    <div class="sidebar">
+      <!-- Filters -->
+      <div class="filters">
+        <div class="filter-row">
+          <label>Price</label>
+          <select id="filterMinPrice">
+            <option value="0">No min</option>
+            <option value="500000" selected>$500K</option>
+            <option value="600000">$600K</option>
+            <option value="700000">$700K</option>
+            <option value="800000">$800K</option>
+            <option value="900000">$900K</option>
+            <option value="1000000">$1M</option>
+            <option value="1200000">$1.2M</option>
+            <option value="1500000">$1.5M</option>
+          </select>
+          <span style="color:#475569;">to</span>
+          <select id="filterMaxPrice">
+            <option value="700000">$700K</option>
+            <option value="800000">$800K</option>
+            <option value="1000000">$1M</option>
+            <option value="1200000">$1.2M</option>
+            <option value="1500000">$1.5M</option>
+            <option value="2000000" selected>$2M</option>
+            <option value="99999999">No max</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Beds</label>
+          <select id="filterBeds">
+            <option value="0">Any</option>
+            <option value="1">1+</option>
+            <option value="2" selected>2+</option>
+            <option value="3">3+</option>
+            <option value="4">4+</option>
+          </select>
+          <label style="min-width:50px;">Baths</label>
+          <select id="filterBaths">
+            <option value="0">Any</option>
+            <option value="1">1+</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>City</label>
+          <select id="filterCity">
+            <option value="">All Cities</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Type</label>
+          <select id="filterType">
+            <option value="">All Types</option>
+            <option value="Single Family Residential">House</option>
+            <option value="Condo/Co-op">Condo</option>
+            <option value="Townhouse">Townhouse</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Max $/mo</label>
+          <select id="filterMaxMonthly">
+            <option value="99999">No max</option>
+            <option value="4000">$4,000</option>
+            <option value="5000">$5,000</option>
+            <option value="6000">$6,000</option>
+            <option value="7000">$7,000</option>
+            <option value="8000">$8,000</option>
+            <option value="10000">$10,000</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mortgage settings -->
+      <details class="mortgage-config">
+        <summary>Mortgage Settings</summary>
+        <div class="fields">
+          <div class="filter-row">
+            <label>Down %</label>
+            <input type="number" id="mortgageDown" value="20" min="3" max="100" step="1">
+          </div>
+          <div class="filter-row">
+            <label>Rate %</label>
+            <input type="number" id="mortgageRate" value="6.5" min="1" max="15" step="0.125">
+          </div>
+          <div class="filter-row">
+            <label>Term</label>
+            <select id="mortgageTerm">
+              <option value="30" selected>30 years</option>
+              <option value="15">15 years</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label></label>
+            <button onclick="recalcMortgages()" style="
+              background:#3b82f6; color:white; border:none; padding:6px 16px;
+              border-radius:6px; cursor:pointer; font-size:13px; font-weight:500;
+            ">Recalculate</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Sort -->
+      <div class="sort-bar">
+        <button class="sort-btn active" data-sort="price" onclick="setSort('price')">Price</button>
+        <button class="sort-btn" data-sort="monthly" onclick="setSort('monthly')">Monthly</button>
+        <button class="sort-btn" data-sort="sqft" onclick="setSort('sqft')">$/sqft</button>
+        <button class="sort-btn" data-sort="dom" onclick="setSort('dom')">Days Listed</button>
+        <button class="sort-btn" data-sort="size" onclick="setSort('size')">Size</button>
+      </div>
+
+      <div class="listing-count" id="listingCount">0 listings</div>
+
+      <!-- Listing cards -->
+      <div class="listings" id="listingsContainer"></div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    // ── State ──
+    let allListings = [];
+    let filtered = [];
+    let currentSort = 'price';
+    let markers = {};
+    let markerCluster;
+
+    // ── Map setup ──
+    const map = L.map('map', {
+      zoomControl: true,
+    }).setView([37.36, -121.93], 11);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    markerCluster = L.markerClusterGroup({
+      maxClusterRadius: 40,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      iconCreateFunction: function(cluster) {
+        const count = cluster.getChildCount();
+        let size = 'small';
+        if (count > 50) size = 'large';
+        else if (count > 20) size = 'medium';
+        return L.divIcon({
+          html: `<div style="
+            background: #3b82f6dd;
+            color: white;
+            border-radius: 50%;
+            width: ${size === 'large' ? 50 : size === 'medium' ? 40 : 32}px;
+            height: ${size === 'large' ? 50 : size === 'medium' ? 40 : 32}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: ${size === 'large' ? 14 : 12}px;
+            border: 2px solid #60a5fa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+          ">${count}</div>`,
+          className: '',
+          iconSize: [size === 'large' ? 50 : size === 'medium' ? 40 : 32,
+                     size === 'large' ? 50 : size === 'medium' ? 40 : 32],
+        });
+      },
+    });
+    map.addLayer(markerCluster);
+
+    // ── Mortgage calc ──
+    function calcMortgage(price, downPct, rate, termYears, hoa) {
+      const down = price * (downPct / 100);
+      const loan = price - down;
+      const r = (rate / 100) / 12;
+      const n = termYears * 12;
+      let monthlyPI;
+      if (r > 0) {
+        monthlyPI = loan * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      } else {
+        monthlyPI = loan / n;
+      }
+      const monthlyTax = (price * 0.012) / 12;
+      const monthlyIns = 1800 / 12;
+      const totalMonthly = monthlyPI + monthlyTax + monthlyIns + (hoa || 0);
+      const totalInterest = monthlyPI * n - loan;
+      return {
+        down, loan, monthlyPI, monthlyTax, monthlyIns,
+        totalMonthly, totalInterest,
+      };
+    }
+
+    function recalcMortgages() {
+      const downPct = parseFloat(document.getElementById('mortgageDown').value) || 20;
+      const rate = parseFloat(document.getElementById('mortgageRate').value) || 6.5;
+      const term = parseInt(document.getElementById('mortgageTerm').value) || 30;
+
+      allListings.forEach(l => {
+        const m = calcMortgage(l.price, downPct, rate, term, l.hoa);
+        l.down_payment = m.down;
+        l.monthly_mortgage = Math.round(m.monthlyPI * 100) / 100;
+        l.monthly_total = Math.round(m.totalMonthly * 100) / 100;
+        l.total_interest = Math.round(m.totalInterest * 100) / 100;
+        l._monthlyTax = m.monthlyTax;
+        l._monthlyIns = m.monthlyIns;
+      });
+
+      applyFilters();
+    }
+
+    // ── Formatting ──
+    function fmtPrice(n) {
+      if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+      if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+      return `$${n.toFixed(0)}`;
+    }
+
+    function fmtMoney(n) {
+      return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    }
+
+    // ── Marker color by price ──
+    function priceColor(price) {
+      if (price < 800_000) return '#22c55e';    // green
+      if (price < 1_200_000) return '#eab308';   // yellow
+      if (price < 1_600_000) return '#f97316';   // orange
+      return '#ef4444';                           // red
+    }
+
+    function createMarkerIcon(price) {
+      const color = priceColor(price);
+      return L.divIcon({
+        className: '',
+        html: `<div style="
+          background: ${color};
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: 2px solid white;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        "></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+    }
+
+    // ── Popup ──
+    function makePopup(l) {
+      const downPct = parseFloat(document.getElementById('mortgageDown').value) || 20;
+      const rate = parseFloat(document.getElementById('mortgageRate').value) || 6.5;
+      const term = parseInt(document.getElementById('mortgageTerm').value) || 30;
+
+      return `
+        <div class="popup-price">${fmtPrice(l.price)}</div>
+        <div class="popup-monthly">${fmtMoney(l.monthly_total)}/mo est.</div>
+        <div class="popup-address">${l.address}, ${l.city} ${l.zip_code}</div>
+        <div class="popup-details">
+          <span><strong>${l.beds}</strong> beds</span>
+          <span><strong>${l.baths}</strong> baths</span>
+          <span><strong>${l.sqft ? l.sqft.toLocaleString() : '—'}</strong> sqft</span>
+          <span><strong>${l.price_per_sqft ? fmtMoney(l.price_per_sqft) : '—'}</strong>/sqft</span>
+          <span><strong>${l.year_built || '—'}</strong> built</span>
+          <span><strong>${l.days_on_market}</strong> days listed</span>
+          <span><strong>${l.property_type}</strong></span>
+          ${l.hoa > 0 ? `<span><strong>${fmtMoney(l.hoa)}</strong> HOA/mo</span>` : ''}
+        </div>
+        <div class="popup-mortgage">
+          <div style="font-weight:600;margin-bottom:4px;">Mortgage Estimate (${downPct}% down, ${rate}%, ${term}yr)</div>
+          <div class="breakdown">
+            <span>Down payment</span><span class="val">${fmtMoney(l.down_payment)}</span>
+            <span>Principal & Interest</span><span class="val">${fmtMoney(l.monthly_mortgage)}/mo</span>
+            <span>Property Tax</span><span class="val">${fmtMoney(l._monthlyTax || (l.price * 0.012) / 12)}/mo</span>
+            <span>Insurance</span><span class="val">${fmtMoney(l._monthlyIns || 150)}/mo</span>
+            ${l.hoa > 0 ? `<span>HOA</span><span class="val">${fmtMoney(l.hoa)}/mo</span>` : ''}
+          </div>
+          <div class="total-row">
+            <span>Total Monthly</span>
+            <span>${fmtMoney(l.monthly_total)}/mo</span>
+          </div>
+        </div>
+        ${l.listing_url ? `<a class="popup-link" href="${l.listing_url}" target="_blank" rel="noopener">View on Redfin &rarr;</a>` : ''}
+      `;
+    }
+
+    // ── Filters ──
+    function applyFilters() {
+      const minPrice = parseInt(document.getElementById('filterMinPrice').value);
+      const maxPrice = parseInt(document.getElementById('filterMaxPrice').value);
+      const minBeds = parseInt(document.getElementById('filterBeds').value);
+      const minBaths = parseInt(document.getElementById('filterBaths').value);
+      const city = document.getElementById('filterCity').value;
+      const propType = document.getElementById('filterType').value;
+      const maxMonthly = parseInt(document.getElementById('filterMaxMonthly').value);
+
+      filtered = allListings.filter(l => {
+        if (l.price < minPrice || l.price > maxPrice) return false;
+        if (l.beds < minBeds) return false;
+        if (l.baths < minBaths) return false;
+        if (city && l.city !== city) return false;
+        if (propType && l.property_type !== propType) return false;
+        if (l.monthly_total > maxMonthly) return false;
+        return true;
+      });
+
+      sortListings();
+      renderListings();
+      renderMarkers();
+      updateStats();
+    }
+
+    function sortListings() {
+      const sorters = {
+        price: (a, b) => a.price - b.price,
+        monthly: (a, b) => a.monthly_total - b.monthly_total,
+        sqft: (a, b) => (a.price_per_sqft || 99999) - (b.price_per_sqft || 99999),
+        dom: (a, b) => b.days_on_market - a.days_on_market,
+        size: (a, b) => (b.sqft || 0) - (a.sqft || 0),
+      };
+      filtered.sort(sorters[currentSort] || sorters.price);
+    }
+
+    function setSort(key) {
+      currentSort = key;
+      document.querySelectorAll('.sort-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.sort === key);
+      });
+      sortListings();
+      renderListings();
+    }
+
+    // ── Render listings ──
+    function renderListings() {
+      const container = document.getElementById('listingsContainer');
+      container.innerHTML = '';
+
+      filtered.forEach((l, i) => {
+        const card = document.createElement('div');
+        card.className = 'listing-card';
+        card.dataset.index = i;
+
+        const domClass = l.days_on_market > 30 ? 'stale' : '';
+
+        card.innerHTML = `
+          <div>
+            <span class="price">${fmtPrice(l.price)}</span>
+            <span class="monthly">${fmtMoney(l.monthly_total)}/mo</span>
+          </div>
+          <div class="address">${l.address}, ${l.city} ${l.zip_code}</div>
+          <div class="details">
+            <span>${l.beds} bd</span>
+            <span>${l.baths} ba</span>
+            <span>${l.sqft ? l.sqft.toLocaleString() + ' sqft' : ''}</span>
+            ${l.price_per_sqft ? `<span>${fmtMoney(l.price_per_sqft)}/sqft</span>` : ''}
+          </div>
+          <div class="tags">
+            <span class="tag type">${l.property_type.replace('Single Family Residential', 'House').replace('Condo/Co-op', 'Condo')}</span>
+            <span class="tag dom ${domClass}">${l.days_on_market}d on market</span>
+            ${l.hoa > 0 ? `<span class="tag type">HOA ${fmtMoney(l.hoa)}</span>` : ''}
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          // Highlight card
+          document.querySelectorAll('.listing-card.active').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+
+          // Pan to marker and open popup
+          const key = `${l.latitude},${l.longitude}`;
+          const marker = markers[key];
+          if (marker) {
+            map.setView([l.latitude, l.longitude], 15);
+            markerCluster.zoomToShowLayer(marker, () => {
+              marker.openPopup();
+            });
+          }
+        });
+
+        container.appendChild(card);
+      });
+
+      document.getElementById('listingCount').textContent =
+        `${filtered.length} listing${filtered.length !== 1 ? 's' : ''}`;
+    }
+
+    // ── Render markers ──
+    function renderMarkers() {
+      markerCluster.clearLayers();
+      markers = {};
+
+      filtered.forEach(l => {
+        if (!l.latitude || !l.longitude) return;
+
+        const marker = L.marker([l.latitude, l.longitude], {
+          icon: createMarkerIcon(l.price),
+        });
+
+        marker.bindPopup(makePopup(l), { maxWidth: 320 });
+
+        const key = `${l.latitude},${l.longitude}`;
+        markers[key] = marker;
+        markerCluster.addLayer(marker);
+      });
+    }
+
+    function updateStats() {
+      if (filtered.length === 0) {
+        document.getElementById('headerStats').textContent = 'No listings match filters';
+        return;
+      }
+      const prices = filtered.map(l => l.price).sort((a, b) => a - b);
+      const median = prices[Math.floor(prices.length / 2)];
+      const monthlies = filtered.map(l => l.monthly_total).sort((a, b) => a - b);
+      const medianMonthly = monthlies[Math.floor(monthlies.length / 2)];
+      document.getElementById('headerStats').textContent =
+        `${filtered.length} listings | Median: ${fmtPrice(median)} (${fmtMoney(medianMonthly)}/mo)`;
+    }
+
+    // ── Populate city filter ──
+    function populateCityFilter() {
+      const cities = [...new Set(allListings.map(l => l.city))].sort();
+      const select = document.getElementById('filterCity');
+      cities.forEach(city => {
+        const opt = document.createElement('option');
+        opt.value = city;
+        opt.textContent = city;
+        select.appendChild(opt);
+      });
+    }
+
+    // ── Event listeners ──
+    document.querySelectorAll('.filters select, .filters input').forEach(el => {
+      el.addEventListener('change', applyFilters);
+    });
+
+    // ── Load data ──
+    fetch('data/listings.json')
+      .then(r => r.json())
+      .then(data => {
+        allListings = data;
+
+        // Pre-compute mortgage helper fields
+        allListings.forEach(l => {
+          l._monthlyTax = (l.price * 0.012) / 12;
+          l._monthlyIns = 1800 / 12;
+        });
+
+        populateCityFilter();
+        applyFilters();
+
+        // Fit map to all markers
+        if (filtered.length > 0) {
+          const bounds = L.latLngBounds(
+            filtered.filter(l => l.latitude && l.longitude)
+                    .map(l => [l.latitude, l.longitude])
+          );
+          map.fitBounds(bounds, { padding: [30, 30] });
+        }
+      })
+      .catch(err => {
+        document.getElementById('headerStats').textContent =
+          'Error loading data. Run scraper.py first.';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
