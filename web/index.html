@@ -209,6 +209,83 @@
       color: #f87171;
     }
 
+    .tag.commute {
+      background: #1c2e1c;
+      color: #4ade80;
+    }
+
+    .tag.commute.far {
+      background: #3b2c1c;
+      color: #fbbf24;
+    }
+
+    .tag.crime-good {
+      background: #1c2e1c;
+      color: #4ade80;
+    }
+
+    .tag.crime-ok {
+      background: #3b2c1c;
+      color: #fbbf24;
+    }
+
+    .tag.crime-bad {
+      background: #3b1c1c;
+      color: #f87171;
+    }
+
+    .tag.walkscore {
+      background: #1e2a3f;
+      color: #93c5fd;
+    }
+
+    .popup-scores {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #334155;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      text-align: center;
+      font-size: 11px;
+    }
+
+    .popup-scores .score-box {
+      background: #0f172a;
+      border-radius: 6px;
+      padding: 6px 4px;
+    }
+
+    .popup-scores .score-val {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .popup-scores .score-label {
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .popup-commute {
+      margin-top: 8px;
+      padding: 8px;
+      background: #0f172a;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .popup-crime {
+      margin-top: 6px;
+      padding: 8px;
+      background: #0f172a;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
     /* ── Map ── */
     #map {
       flex: 1;
@@ -419,6 +496,35 @@
             <option value="10000">$10,000</option>
           </select>
         </div>
+        <div class="filter-row">
+          <label>Commute</label>
+          <select id="filterMaxCommute">
+            <option value="999">Any</option>
+            <option value="15">< 15 min</option>
+            <option value="20">< 20 min</option>
+            <option value="30" selected>< 30 min</option>
+            <option value="45">< 45 min</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Safety</label>
+          <select id="filterCrimeGrade">
+            <option value="">Any</option>
+            <option value="A">A or better</option>
+            <option value="B">B or better</option>
+            <option value="C">C or better</option>
+            <option value="D">D or better</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>Walk Score</label>
+          <select id="filterMinWalkScore">
+            <option value="0">Any</option>
+            <option value="50">50+</option>
+            <option value="70">70+ (Very Walkable)</option>
+            <option value="90">90+ (Walker's Paradise)</option>
+          </select>
+        </div>
       </div>
 
       <!-- Mortgage settings -->
@@ -457,6 +563,8 @@
         <button class="sort-btn" data-sort="sqft" onclick="setSort('sqft')">$/sqft</button>
         <button class="sort-btn" data-sort="dom" onclick="setSort('dom')">Days Listed</button>
         <button class="sort-btn" data-sort="size" onclick="setSort('size')">Size</button>
+        <button class="sort-btn" data-sort="commute" onclick="setSort('commute')">Commute</button>
+        <button class="sort-btn" data-sort="walkscore" onclick="setSort('walkscore')">Walk</button>
       </div>
 
       <div class="listing-count" id="listingCount">0 listings</div>
@@ -572,6 +680,38 @@
       return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     }
 
+    function crimeGradeColor(grade) {
+      if (!grade) return '#64748b';
+      if (grade.startsWith('A')) return '#22c55e';
+      if (grade.startsWith('B')) return '#4ade80';
+      if (grade.startsWith('C')) return '#eab308';
+      if (grade.startsWith('D')) return '#f97316';
+      return '#ef4444';
+    }
+
+    function crimeGradeClass(grade) {
+      if (!grade) return '';
+      if (grade.startsWith('A') || grade.startsWith('B')) return 'crime-good';
+      if (grade.startsWith('C')) return 'crime-ok';
+      return 'crime-bad';
+    }
+
+    function walkScoreColor(score) {
+      if (score == null) return '#64748b';
+      if (score >= 90) return '#22c55e';
+      if (score >= 70) return '#4ade80';
+      if (score >= 50) return '#eab308';
+      return '#f87171';
+    }
+
+    const GRADE_ORDER = { 'A+': 0, 'A': 1, 'A-': 2, 'B+': 3, 'B': 4, 'B-': 5, 'C+': 6, 'C': 7, 'C-': 8, 'D+': 9, 'D': 10, 'D-': 11, 'F': 12 };
+    function gradeRank(grade) { return GRADE_ORDER[grade] ?? 99; }
+    function gradePassesFilter(grade, minGrade) {
+      if (!minGrade) return true;
+      if (!grade) return false;
+      return gradeRank(grade) <= gradeRank(minGrade + '-');
+    }
+
     // ── Marker color by price ──
     function priceColor(price) {
       if (price < 800_000) return '#22c55e';    // green
@@ -617,6 +757,33 @@
           <span><strong>${l.property_type}</strong></span>
           ${l.hoa > 0 ? `<span><strong>${fmtMoney(l.hoa)}</strong> HOA/mo</span>` : ''}
         </div>
+        ${l.commute_minutes != null ? `
+        <div class="popup-commute">
+          <span>Commute to Apple Park</span>
+          <span style="font-weight:700;color:${l.commute_minutes <= 20 ? '#4ade80' : l.commute_minutes <= 30 ? '#eab308' : '#f87171'}">${l.commute_minutes} min</span>
+          <span style="color:#64748b">${l.commute_distance_miles} mi</span>
+        </div>` : ''}
+        ${l.crime_grade ? `
+        <div class="popup-crime">
+          <span>Neighborhood Safety</span>
+          <span style="font-weight:700;color:${crimeGradeColor(l.crime_grade)}">Grade: ${l.crime_grade}</span>
+          <span style="color:#64748b;font-size:11px">Violent: ${l.violent_vs_national > 0 ? '+' : ''}${l.violent_vs_national}% vs US</span>
+        </div>` : ''}
+        ${l.walk_score != null ? `
+        <div class="popup-scores">
+          <div class="score-box">
+            <div class="score-val" style="color:${walkScoreColor(l.walk_score)}">${l.walk_score}</div>
+            <div class="score-label">Walk</div>
+          </div>
+          <div class="score-box">
+            <div class="score-val" style="color:${walkScoreColor(l.transit_score)}">${l.transit_score ?? '—'}</div>
+            <div class="score-label">Transit</div>
+          </div>
+          <div class="score-box">
+            <div class="score-val" style="color:${walkScoreColor(l.bike_score)}">${l.bike_score ?? '—'}</div>
+            <div class="score-label">Bike</div>
+          </div>
+        </div>` : ''}
         <div class="popup-mortgage">
           <div style="font-weight:600;margin-bottom:4px;">Mortgage Estimate (${downPct}% down, ${rate}%, ${term}yr)</div>
           <div class="breakdown">
@@ -644,6 +811,9 @@
       const city = document.getElementById('filterCity').value;
       const propType = document.getElementById('filterType').value;
       const maxMonthly = parseInt(document.getElementById('filterMaxMonthly').value);
+      const maxCommute = parseInt(document.getElementById('filterMaxCommute').value);
+      const minCrimeGrade = document.getElementById('filterCrimeGrade').value;
+      const minWalkScore = parseInt(document.getElementById('filterMinWalkScore').value);
 
       filtered = allListings.filter(l => {
         if (l.price < minPrice || l.price > maxPrice) return false;
@@ -652,6 +822,9 @@
         if (city && l.city !== city) return false;
         if (propType && l.property_type !== propType) return false;
         if (l.monthly_total > maxMonthly) return false;
+        if (maxCommute < 999 && (l.commute_minutes == null || l.commute_minutes > maxCommute)) return false;
+        if (minCrimeGrade && !gradePassesFilter(l.crime_grade, minCrimeGrade)) return false;
+        if (minWalkScore > 0 && (l.walk_score == null || l.walk_score < minWalkScore)) return false;
         return true;
       });
 
@@ -668,6 +841,8 @@
         sqft: (a, b) => (a.price_per_sqft || 99999) - (b.price_per_sqft || 99999),
         dom: (a, b) => b.days_on_market - a.days_on_market,
         size: (a, b) => (b.sqft || 0) - (a.sqft || 0),
+        commute: (a, b) => (a.commute_minutes || 999) - (b.commute_minutes || 999),
+        walkscore: (a, b) => (b.walk_score || 0) - (a.walk_score || 0),
       };
       filtered.sort(sorters[currentSort] || sorters.price);
     }
@@ -709,6 +884,9 @@
             <span class="tag type">${l.property_type.replace('Single Family Residential', 'House').replace('Condo/Co-op', 'Condo')}</span>
             <span class="tag dom ${domClass}">${l.days_on_market}d on market</span>
             ${l.hoa > 0 ? `<span class="tag type">HOA ${fmtMoney(l.hoa)}</span>` : ''}
+            ${l.commute_minutes != null ? `<span class="tag commute ${l.commute_minutes > 25 ? 'far' : ''}">${l.commute_minutes} min</span>` : ''}
+            ${l.crime_grade ? `<span class="tag ${crimeGradeClass(l.crime_grade)}">${l.crime_grade}</span>` : ''}
+            ${l.walk_score != null ? `<span class="tag walkscore">Walk ${l.walk_score}</span>` : ''}
           </div>
         `;
 
